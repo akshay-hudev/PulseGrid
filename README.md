@@ -99,6 +99,7 @@ Use one output for `AUTH_SECRET`. Use the other for `API_INTERNAL_SECRET`, placi
 ### `backend/.env`
 
 ```dotenv
+NODE_ENV="development"
 DATABASE_URL="postgresql://pulsegrid:pulsegrid_dev_only_change_me@localhost:5432/pulsegrid?schema=public"
 REDIS_URL="redis://localhost:6379"
 PORT="4000"
@@ -119,6 +120,7 @@ ETHEREAL_SMTP_PASS="your-ethereal-password"
 ```dotenv
 AUTH_SECRET="replace-with-a-separate-random-secret"
 AUTH_URL="http://localhost:3000"
+NEXTAUTH_URL="http://localhost:3000"
 GOOGLE_CLIENT_ID="your-google-oauth-client-id"
 GOOGLE_CLIENT_SECRET="your-google-oauth-client-secret"
 BACKEND_API_URL="http://localhost:4000"
@@ -172,6 +174,78 @@ cd frontend
 npm ci
 npm run dev
 ```
+
+## Production Deployment: Railway and Vercel
+
+Deploy the Express API and BullMQ worker as two Railway services connected to the same managed PostgreSQL and Redis instances. Deploy `frontend/` as a separate Vercel project. Do not deploy the development Compose stack as one production service.
+
+### Railway Service Configuration
+
+Create managed PostgreSQL and Redis services first. Then create two services from the same GitHub repository:
+
+| Setting | API Service | Worker Service |
+|---|---|---|
+| Root directory | `/backend` | `/backend` |
+| Build | Auto-detected `backend/Dockerfile` | Auto-detected `backend/Dockerfile` |
+| Start command | `npm run start` | `npm run start:worker` |
+| Public domain | Required | None |
+| Health check | `/health` | Not HTTP-based |
+| Pre-deploy command | `npm run db:deploy` | None |
+
+The Dockerfile executes the self-contained `npm run build` script, which generates Prisma Client before compiling TypeScript. Run migrations only from the API service's pre-deploy phase. Both services must deploy the same commit and share the same database, Redis instance, queue name, internal secret, and Ethereal credentials.
+
+Configure these Railway variables on both API and worker unless marked otherwise:
+
+| Variable | Required On | Production Check |
+|---|---|---|
+| `NODE_ENV` | Both | Exactly `production`. |
+| `DATABASE_URL` | Both | Reference the managed PostgreSQL service's private `DATABASE_URL`; never use the local Docker URL. |
+| `REDIS_URL` | Both | Reference the managed Redis service's private `REDIS_URL`, retaining its `redis://` or `rediss://` scheme. |
+| `EMAIL_QUEUE_NAME` | Both | Use one stable value, such as `pulsegrid-email`. Changing it strands jobs in the previous queue. |
+| `API_INTERNAL_SECRET` | API | At least 32 random characters and identical to Vercel's value. Never prefix it with `NEXT_PUBLIC_`. |
+| `CORS_ORIGIN` | API | Exact Vercel production origin, such as `https://scheduler.example.com`, without a trailing slash. |
+| `PORT` | API | Use Railway's injected value; do not hardcode port 4000 in Railway. |
+| `WORKER_CONCURRENCY` | Worker | Start with `10`, then tune against SMTP and database capacity. |
+| `ETHEREAL_SMTP_HOST` | Worker | `smtp.ethereal.email`. |
+| `ETHEREAL_SMTP_PORT` | Worker | `587` for STARTTLS or `465` for implicit TLS. |
+| `ETHEREAL_SMTP_USER` | Worker | Ethereal SMTP username stored as a secret. |
+| `ETHEREAL_SMTP_PASS` | Worker | Ethereal SMTP password stored as a secret. |
+
+After deployment, `/health` must return HTTP 200, the worker must log `Ethereal SMTP connection verified`, and the API must log `Queue reconciliation complete`.
+
+### Vercel Project Configuration
+
+Import the repository into Vercel and set the project Root Directory to `frontend`. Keep the detected framework as Next.js and the standard build command as `npm run build`; Vercel does not use `npm start` for its managed Next.js runtime.
+
+| Variable | Production Check |
+|---|---|
+| `AUTH_SECRET` | Required by Auth.js v5; use a cryptographically random value of at least 32 characters. |
+| `AUTH_URL` | Set to the stable HTTPS frontend origin. Auth.js v5 normally infers the host, but this documents the canonical production URL. |
+| `NEXTAUTH_URL` | Legacy NextAuth-compatible alias. Set it to the same origin as `AUTH_URL`, without `/api/auth`. |
+| `GOOGLE_CLIENT_ID` | Production Google OAuth Web Client ID for the deployed frontend origin. |
+| `GOOGLE_CLIENT_SECRET` | Matching Google OAuth secret. Keep it server-only and never use a `NEXT_PUBLIC_` prefix. |
+| `BACKEND_API_URL` | Public Railway API origin, without `/api` or a trailing slash. Only server-side route handlers use it. |
+| `API_INTERNAL_SECRET` | Must exactly match the Railway API value and remain server-only. |
+
+The production Google OAuth client must include:
+
+```text
+Authorized JavaScript origin: https://your-production-domain
+Authorized redirect URI:      https://your-production-domain/api/auth/callback/google
+```
+
+Google does not accept arbitrary Vercel preview callback wildcards. For preview authentication, use a stable preview domain with its own OAuth client or Auth.js redirect-proxy configuration. Apply variables to the correct Vercel Production/Preview scopes and redeploy after any environment change.
+
+### Production Release Checklist
+
+- `npm ci && npm run build` succeeds from a clean checkout in both project directories.
+- Prisma migrations complete before the API starts; never run `prisma migrate dev` in production.
+- API and worker deploy from the same commit and share `DATABASE_URL`, `REDIS_URL`, and `EMAIL_QUEUE_NAME`.
+- Only the API has a public Railway domain; PostgreSQL, Redis, and the worker remain private.
+- Railway health checks and restart policies are enabled for both long-running services.
+- Vercel, Railway `CORS_ORIGIN`, and Google OAuth use the same production HTTPS frontend origin.
+- A scheduled Ethereal message reaches `SENT`, exposes a preview URL, and survives an API/worker restart.
+- Secrets exist only in platform secret stores—not in Git, Docker build arguments, browser bundles, or logs.
 
 ## API Surface
 
