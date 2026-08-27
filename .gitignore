@@ -1,0 +1,28 @@
+# Operating-system metadata
+.DS_Store
+**/.DS_Store
+Thumbs.db
+
+# Dependencies and generated output
+**/node_modules/
+**/dist/
+**/.next/
+**/out/
+**/coverage/
+**/*.tsbuildinfo
+
+# Local environment and credentials (keep templates)
+**/.env
+**/.env.local
+**/.env.*.local
+!**/.env.example
+
+# Logs and local tooling
+*.log
+npm-debug.log*
+.vscode/
+.idea/
+backend/.agents/
+backend/.claude/
+backend/.windsurf/
+backend/skills-lock.json

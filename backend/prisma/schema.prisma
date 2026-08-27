@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EmailStatus {
+  SCHEDULED
+  QUEUED
+  SENDING
+  RETRYING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+model User {
+  id             String          @id @default(uuid()) @db.Uuid
+  name           String?
+  email          String          @unique
+  emailVerified  DateTime?       @db.Timestamptz(3)
+  image          String?
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
+  accounts       Account[]
+  sessions       Session[]
+  senderAccounts SenderAccount[]
+  emails         Email[]
+}
+
+model Account {
+  id                String  @id @default(uuid()) @db.Uuid
+  userId            String  @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  sessionToken String   @unique
+  userId       String   @db.Uuid
+  expires      DateTime @db.Timestamptz(3)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime @db.Timestamptz(3)
+
+  @@unique([identifier, token])
+}
+
+model SenderAccount {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  email       String
+  displayName String?
+  hourlyLimit Int
+  minDelayMs  Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emails      Email[]
+
+  @@unique([userId, email])
+  @@index([userId, isActive])
+}
+
+model Email {
+  id                String        @id @default(uuid()) @db.Uuid
+  userId            String        @db.Uuid
+  senderAccountId   String        @db.Uuid
+  batchId           String?       @db.Uuid
+  bullmqJobId       String        @unique
+  idempotencyKey    String        @unique
+  fromEmail         String
+  toEmail           String
+  subject           String
+  textBody          String        @db.Text
+  htmlBody          String?       @db.Text
+  scheduledAt       DateTime      @db.Timestamptz(3)
+  status            EmailStatus   @default(SCHEDULED)
+  attemptCount      Int           @default(0)
+  maxAttempts       Int           @default(5)
+  lastAttemptAt     DateTime?     @db.Timestamptz(3)
+  nextAttemptAt     DateTime?     @db.Timestamptz(3)
+  sentAt            DateTime?     @db.Timestamptz(3)
+  providerMessageId String?
+  previewUrl        String?
+  lastError         String?       @db.Text
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+  version           Int           @default(0)
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  senderAccount     SenderAccount @relation(fields: [senderAccountId], references: [id], onDelete: Restrict)
+
+  @@index([userId, status, scheduledAt])
+  @@index([senderAccountId, status, scheduledAt])
+  @@index([batchId])
+  @@index([status, nextAttemptAt])
+}

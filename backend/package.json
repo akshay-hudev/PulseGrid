@@ -1,0 +1,68 @@
+{
+  "name": "pulsegrid-scheduler",
+  "version": "0.1.0",
+  "description": "Production-grade ReachInbox email scheduling service.",
+  "private": true,
+  "scripts": {
+    "prisma:generate": "prisma generate --config prisma7.config.ts",
+    "db:migrate": "prisma migrate dev --config prisma7.config.ts",
+    "db:deploy": "prisma migrate deploy --config prisma7.config.ts",
+    "db:studio": "prisma studio --config prisma7.config.ts",
+    "build": "tsc -p tsconfig.json",
+    "dev": "ts-node src/server.ts",
+    "start": "node dist/server.js",
+    "worker": "ts-node src/workers/worker.ts",
+    "start:worker": "node dist/workers/worker.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "license": "UNLICENSED",
+  "keywords": [
+    "bullmq",
+    "queue",
+    "redis",
+    "worker",
+    "jobs",
+    "job-queue",
+    "task-queue",
+    "scheduler",
+    "background-jobs",
+    "task-runner",
+    "notifications",
+    "email",
+    "workflow",
+    "nodejs",
+    "backend",
+    "async"
+  ],
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "bullmq": "^5.56.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.0",
+    "express": "^5.1.0",
+    "helmet": "^8.3.0",
+    "ioredis": "^5.6.1",
+    "nodemailer": "^9.0.5",
+    "pg": "^8.23.0",
+    "winston": "^3.17.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.4",
+    "@types/nodemailer": "^8.0.1",
+    "@types/pg": "^8.23.1",
+    "prisma": "^7.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "allowScripts": {
+    "prisma@7.10.0": true,
+    "@prisma/engines@7.10.0": true
+  }
+}

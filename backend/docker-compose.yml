@@ -1,0 +1,98 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pulsegrid
+      POSTGRES_USER: pulsegrid
+      POSTGRES_PASSWORD: pulsegrid_dev_only_change_me
+    ports:
+      - "5432:5432"
+    volumes:
+      - pulsegrid_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulsegrid -d pulsegrid"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - pulsegrid_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      target: migration
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://pulsegrid:pulsegrid_dev_only_change_me@postgres:5432/pulsegrid?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://pulsegrid:pulsegrid_dev_only_change_me@postgres:5432/pulsegrid?schema=public
+      REDIS_URL: redis://redis:6379
+      PORT: 4000
+    command: ["npm", "start"]
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://pulsegrid:pulsegrid_dev_only_change_me@postgres:5432/pulsegrid?schema=public
+      REDIS_URL: redis://redis:6379
+    command: ["npm", "run", "start:worker"]
+    depends_on:
+      api:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build: ../frontend
+    restart: unless-stopped
+    env_file: ../frontend/.env.local
+    environment:
+      BACKEND_API_URL: http://api:4000
+      AUTH_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  pulsegrid_postgres_data:
+  pulsegrid_redis_data:
