@@ -4,6 +4,7 @@ import { prisma } from '../config/prisma';
 import { EmailStatus } from '../generated/prisma/client';
 import { type AuthenticatedRequest, requireInternalUser } from '../http/auth';
 import { scheduleEmails } from '../services/email-scheduler';
+import { emailQueue } from '../queues/email';
 
 const router = Router();
 router.use(requireInternalUser);
@@ -118,6 +119,44 @@ router.get('/sent', async (request, response) => {
   const hasMore = emails.length > limit;
   const items = hasMore ? emails.slice(0, limit) : emails;
   response.json({ items, nextCursor: hasMore ? items.at(-1)?.id : null });
+});
+
+router.delete('/emails/:emailId', async (request, response) => {
+  const emailId = z.string().uuid().parse(request.params.emailId);
+  const userId = (request as unknown as AuthenticatedRequest).userId;
+  const email = await prisma.email.findFirst({
+    where: { id: emailId, userId },
+    select: { id: true, bullmqJobId: true, status: true },
+  });
+
+  if (!email) {
+    response.status(404).json({ error: 'Email not found' });
+    return;
+  }
+  if (email.status === EmailStatus.SENDING) {
+    response.status(409).json({ error: 'An email cannot be deleted while it is sending' });
+    return;
+  }
+
+  const job = await emailQueue.getJob(email.bullmqJobId);
+  if (job) {
+    try {
+      await job.remove();
+    } catch {
+      response.status(409).json({ error: 'The queue is currently processing this email; try again shortly' });
+      return;
+    }
+  }
+
+  const deleted = await prisma.email.deleteMany({
+    where: { id: email.id, userId, status: { not: EmailStatus.SENDING } },
+  });
+  if (deleted.count === 0) {
+    response.status(409).json({ error: 'The email started sending before it could be deleted' });
+    return;
+  }
+
+  response.status(204).send();
 });
 
 export default router;

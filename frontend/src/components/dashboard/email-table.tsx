@@ -1,12 +1,14 @@
 'use client';
 
 import type { EmailRecord } from '@/lib/types';
-import { ExternalLink, Inbox, TriangleAlert } from 'lucide-react';
+import { ExternalLink, Inbox, LoaderCircle, Trash2, TriangleAlert } from 'lucide-react';
+import { useState } from 'react';
 
 interface EmailTableProps {
   emails: EmailRecord[];
   loading: boolean;
   mode: 'scheduled' | 'sent';
+  onDeleted: () => void | Promise<void>;
 }
 
 const statusClass: Record<EmailRecord['status'], string> = {
@@ -29,7 +31,28 @@ function formatDate(value: string | null): string {
   }).format(new Date(value));
 }
 
-export function EmailTable({ emails, loading, mode }: EmailTableProps) {
+export function EmailTable({ emails, loading, mode, onDeleted }: EmailTableProps) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function deleteEmail(email: EmailRecord): Promise<void> {
+    if (!window.confirm(`Delete the email to ${email.toEmail}? This cannot be undone.`)) return;
+    setDeletingId(email.id);
+    setDeleteError(null);
+    try {
+      const response = await fetch(`/api/backend/emails/${email.id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(payload?.error ?? 'Unable to delete email');
+      }
+      await onDeleted();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Unable to delete email');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="table-skeleton" aria-label="Loading emails">
@@ -54,6 +77,7 @@ export function EmailTable({ emails, loading, mode }: EmailTableProps) {
 
   return (
     <div className="manifest-wrap">
+      {deleteError && <p className="table-error" role="alert">{deleteError}</p>}
       <table className="manifest-table">
         <thead>
           <tr>
@@ -61,7 +85,7 @@ export function EmailTable({ emails, loading, mode }: EmailTableProps) {
             <th>Transmission</th>
             <th>{mode === 'scheduled' ? 'Scheduled' : 'Sent'}</th>
             <th>Status</th>
-            <th aria-label="Details" />
+            <th aria-label="Actions" />
           </tr>
         </thead>
         <tbody>
@@ -76,13 +100,25 @@ export function EmailTable({ emails, loading, mode }: EmailTableProps) {
                 </span>
               </td>
               <td>
-                {email.previewUrl ? (
-                  <a className="icon-link" href={email.previewUrl} target="_blank" rel="noreferrer" aria-label="Open Ethereal preview">
-                    <ExternalLink size={15} />
-                  </a>
-                ) : email.lastError ? (
-                  <span className="error-hint" title={email.lastError}><TriangleAlert size={15} /></span>
-                ) : null}
+                <div className="row-actions">
+                  {email.previewUrl ? (
+                    <a className="icon-link" href={email.previewUrl} target="_blank" rel="noreferrer" aria-label="Open Ethereal preview">
+                      <ExternalLink size={15} />
+                    </a>
+                  ) : email.lastError ? (
+                    <span className="error-hint" title={email.lastError}><TriangleAlert size={15} /></span>
+                  ) : null}
+                  <button
+                    className="delete-email-button"
+                    type="button"
+                    onClick={() => void deleteEmail(email)}
+                    disabled={deletingId === email.id || email.status === 'SENDING'}
+                    aria-label={`Delete email to ${email.toEmail}`}
+                    title={email.status === 'SENDING' ? 'Cannot delete while sending' : 'Delete email'}
+                  >
+                    {deletingId === email.id ? <LoaderCircle className="spinner" size={15} /> : <Trash2 size={15} />}
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

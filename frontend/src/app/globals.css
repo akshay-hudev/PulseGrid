@@ -259,6 +259,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .status-sent, .status-sending { color: var(--signal); }.status-retrying { color: var(--amber); }.status-failed { color: var(--coral); }.status-scheduled, .status-queued { color: var(--cyan); }
 .icon-link, .error-hint { display: grid; place-items: center; width: 28px; height: 28px; color: #5f7076; border: 1px solid var(--line); border-radius: 7px; }
 .error-hint { color: var(--coral); }
+.row-actions { display: flex; align-items: center; gap: 7px; }
+.delete-email-button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 7px; color: #7a898e; background: transparent; cursor: pointer; transition: color .2s, border-color .2s, background .2s; }
+.delete-email-button:hover:not(:disabled) { color: var(--coral); border-color: rgba(255,106,95,.45); background: rgba(255,106,95,.06); }
+.delete-email-button:disabled { opacity: .45; cursor: not-allowed; }
+.table-error { margin: 12px 20px 0; padding: 9px 11px; color: #ff9992; border: 1px solid rgba(255,106,95,.25); border-radius: 6px; background: rgba(255,106,95,.06); font-size: 11px; }
 .table-skeleton { padding: 0 20px; }
 .table-skeleton span { display: block; height: 65px; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, transparent, rgba(255,255,255,.035), transparent); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
 .empty-state { min-height: 270px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }

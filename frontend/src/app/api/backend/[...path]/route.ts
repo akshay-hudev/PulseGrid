@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import type { NextRequest } from 'next/server';
 
 const allowedRoutes = new Set(['senders', 'scheduled', 'sent', 'schedule']);
+const emailRoute = /^emails\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface RouteContext {
   params: Promise<{ path: string[] }>;
@@ -15,7 +16,7 @@ async function forward(request: NextRequest, context: RouteContext): Promise<Res
 
   const { path } = await context.params;
   const route = path.join('/');
-  if (!allowedRoutes.has(route)) {
+  if (!allowedRoutes.has(route) && !(request.method === 'DELETE' && emailRoute.test(route))) {
     return Response.json({ error: 'Not found' }, { status: 404 });
   }
 
@@ -56,3 +57,4 @@ async function forward(request: NextRequest, context: RouteContext): Promise<Res
 
 export const GET = forward;
 export const POST = forward;
+export const DELETE = forward;

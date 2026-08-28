@@ -133,7 +133,12 @@ export function PulseDashboard({ user }: PulseDashboardProps) {
               </div>
               <p>AUTO REFRESH · 5 SEC</p>
             </header>
-            <EmailTable emails={activeTab === 'scheduled' ? scheduled.items : sent.items} loading={loading} mode={activeTab} />
+            <EmailTable
+              emails={activeTab === 'scheduled' ? scheduled.items : sent.items}
+              loading={loading}
+              mode={activeTab}
+              onDeleted={() => refresh(true)}
+            />
           </section>
         </div>
       </div>
