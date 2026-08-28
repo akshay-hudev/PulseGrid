@@ -1,7 +1,4 @@
-import nodemailer from 'nodemailer';
 import { DelayedError, Job, UnrecoverableError, Worker } from 'bullmq';
-import { getTestMessageUrl } from 'nodemailer';
-import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { createRedisConnection } from '../config/redis';
 import { getWorkerEnv } from '../config/env';
 import { prisma } from '../config/prisma';
@@ -15,25 +12,46 @@ const workerConnection = createRedisConnection('email-worker');
 const allocatorConnection = createRedisConnection('send-slot-allocator');
 const allocator = new RedisSendSlotAllocator(allocatorConnection);
 
-const transporter = nodemailer.createTransport({
-  host: env.ETHEREAL_SMTP_HOST,
-  port: env.ETHEREAL_SMTP_PORT,
-  secure: env.ETHEREAL_SMTP_PORT === 465,
-  auth: {
-    user: env.ETHEREAL_SMTP_USER,
-    pass: env.ETHEREAL_SMTP_PASS,
-  },
-  pool: true,
-  maxConnections: Math.min(env.WORKER_CONCURRENCY, 10),
-  maxMessages: 100,
-  connectionTimeout: 15_000,
-  greetingTimeout: 15_000,
-  socketTimeout: 60_000,
-});
+interface GatewayDeliveryResult {
+  messageId: string;
+  previewUrl: string | null;
+}
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message.slice(0, 4_000);
   return String(error).slice(0, 4_000);
+}
+
+async function deliverThroughGateway(payload: Record<string, string | undefined>): Promise<GatewayDeliveryResult> {
+  const response = await fetch(env.SMTP_GATEWAY_URL, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-internal-secret': env.API_INTERNAL_SECRET,
+    },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const body = await response.json().catch(() => null) as {
+    messageId?: unknown;
+    previewUrl?: unknown;
+    error?: unknown;
+  } | null;
+
+  if (!response.ok) {
+    const detail = typeof body?.error === 'string' ? body.error : `HTTP ${response.status}`;
+    if (response.status === 400 || response.status === 413) {
+      throw new UnrecoverableError(`SMTP gateway rejected delivery: ${detail}`);
+    }
+    throw new Error(`SMTP gateway delivery failed: ${detail}`);
+  }
+  if (
+    typeof body?.messageId !== 'string'
+    || (body.previewUrl !== null && typeof body.previewUrl !== 'string')
+  ) {
+    throw new Error('SMTP gateway returned an invalid response');
+  }
+  return { messageId: body.messageId, previewUrl: body.previewUrl };
 }
 
 async function delayActiveJob(
@@ -111,42 +129,31 @@ async function processEmail(
   });
 
   try {
-    const info = await transporter.sendMail({
-      envelope: { from: env.ETHEREAL_SMTP_USER, to: email.toEmail },
-      from: {
-        name: email.senderAccount.displayName ?? email.fromEmail,
-        address: email.fromEmail,
-      },
-      to: email.toEmail,
+    const delivery = await deliverThroughGateway({
+      emailId: email.id,
+      fromEmail: email.fromEmail,
+      fromName: email.senderAccount.displayName ?? email.fromEmail,
+      toEmail: email.toEmail,
       subject: email.subject,
-      text: email.textBody,
-      ...(email.htmlBody ? { html: email.htmlBody } : {}),
-      headers: {
-        'X-PulseGrid-Email-Id': email.id,
-      },
+      textBody: email.textBody,
+      ...(email.htmlBody ? { htmlBody: email.htmlBody } : {}),
     });
 
-    if (info.accepted.length === 0 || info.rejected.length > 0) {
-      throw new Error(`SMTP rejected recipient: ${info.rejected.join(', ') || email.toEmail}`);
-    }
-
     const sentAt = new Date();
-    const previewUrl =
-      getTestMessageUrl(info as unknown as SMTPTransport.SentMessageInfo) || null;
     await prisma.email.update({
       where: { id: email.id },
       data: {
         status: EmailStatus.SENT,
         sentAt,
-        providerMessageId: info.messageId,
-        previewUrl,
+        providerMessageId: delivery.messageId,
+        previewUrl: delivery.previewUrl,
         nextAttemptAt: null,
         lastError: null,
         version: { increment: 1 },
       },
     });
 
-    return { emailId: email.id, messageId: info.messageId, sentAt: sentAt.toISOString() };
+    return { emailId: email.id, messageId: delivery.messageId, sentAt: sentAt.toISOString() };
   } catch (error) {
     await prisma.email.update({
       where: { id: email.id },
@@ -211,7 +218,6 @@ async function shutdown(signal: string): Promise<void> {
 
   try {
     await emailWorker.close();
-    transporter.close();
     await Promise.all([workerConnection.quit(), allocatorConnection.quit()]);
     await prisma.$disconnect();
     process.exitCode = 0;
@@ -223,11 +229,3 @@ async function shutdown(signal: string): Promise<void> {
 
 process.once('SIGTERM', () => void shutdown('SIGTERM'));
 process.once('SIGINT', () => void shutdown('SIGINT'));
-
-void transporter.verify().then(
-  () => logger.info('Ethereal SMTP connection verified'),
-  (error: unknown) => {
-    logger.error('Ethereal SMTP verification failed', { error: errorMessage(error) });
-    void shutdown('SMTP_VERIFICATION_FAILED');
-  },
-);

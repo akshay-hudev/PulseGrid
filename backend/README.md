@@ -21,15 +21,16 @@ Next.js BFF ── signed internal identity ──► Express API
                                                     Worker concurrency pool
                                                               │
                                                      Redis Lua allocator
-                                                              │
+                                                              │ HTTPS
                                                               ▼
-                                                        Ethereal SMTP
+                                                Next.js SMTP gateway ──► Ethereal
 ```
 
 - **PostgreSQL is the business source of truth.** Redis may be rebuilt without losing email history.
 - **BullMQ is the execution clock.** Every email receives a delayed job with a deterministic job ID.
 - **The API and worker are separate processes.** Web traffic cannot block email delivery, and workers can scale horizontally.
 - **The Next.js backend-for-frontend keeps the internal API secret server-side.** Browsers never receive it or choose their own user ID.
+- **The server-only SMTP gateway avoids hosts that block outbound SMTP.** The worker invokes it over authenticated HTTPS; Ethereal credentials never reach the browser.
 
 ## Scheduling and persistence
 
@@ -80,15 +81,15 @@ npm run prisma:generate
 npm run db:migrate -- --name init
 ```
 
-Create an Ethereal account at `https://ethereal.email` and configure:
+Configure the authenticated server-only SMTP gateway:
 
 ```env
-ETHEREAL_SMTP_HOST="smtp.ethereal.email"
-ETHEREAL_SMTP_PORT="587"
-ETHEREAL_SMTP_USER="your-ethereal-user"
-ETHEREAL_SMTP_PASS="your-ethereal-password"
+SMTP_GATEWAY_URL="http://localhost:3000/api/internal/email-delivery"
+API_INTERNAL_SECRET="the-same-secret-used-by-the-frontend"
 WORKER_CONCURRENCY="10"
 ```
+
+The frontend runtime owns the Ethereal SMTP credentials and exposes only an authenticated server route. No SMTP secret is shipped to browser code.
 
 Run the backend in two terminals:
 

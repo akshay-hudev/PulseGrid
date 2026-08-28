@@ -71,6 +71,7 @@ services:
     environment:
       DATABASE_URL: postgresql://pulsegrid:pulsegrid_dev_only_change_me@postgres:5432/pulsegrid?schema=public
       REDIS_URL: redis://redis:6379
+      SMTP_GATEWAY_URL: http://frontend:3000/api/internal/email-delivery
     command: ["npm", "run", "start:worker"]
     depends_on:
       api:
@@ -79,6 +80,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      frontend:
+        condition: service_started
 
   frontend:
     build: ../frontend

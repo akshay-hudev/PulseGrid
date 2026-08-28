@@ -14,11 +14,9 @@ const baseSchema = z.object({
 });
 
 const workerSchema = baseSchema.extend({
+  API_INTERNAL_SECRET: z.string().min(32),
   WORKER_CONCURRENCY: positiveInteger.default(10),
-  ETHEREAL_SMTP_HOST: z.string().min(1).default('smtp.ethereal.email'),
-  ETHEREAL_SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(587),
-  ETHEREAL_SMTP_USER: z.string().min(1),
-  ETHEREAL_SMTP_PASS: z.string().min(1),
+  SMTP_GATEWAY_URL: z.string().url(),
 });
 
 export type BaseEnv = z.infer<typeof baseSchema>;
