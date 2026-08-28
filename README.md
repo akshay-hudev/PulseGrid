@@ -45,7 +45,8 @@ Next.js BFF ── trusted user headers ──► Express API
 2. Express validates the request with Zod, normalizes and deduplicates up to 5,000 recipients, and verifies ownership of the selected sender.
 3. Prisma transactionally stores one `Email` per recipient and updates that sender's hourly limit and minimum spacing. Each row has a unique idempotency hash and deterministic BullMQ job ID.
 4. The service uses BullMQ `addBulk` to publish delayed jobs. Each delay is derived from `startTime + recipientIndex × delayBetweenEmailsMs`.
-5. The worker loads the durable email record, acquires a legal send slot, records `SENDING`, submits through the SMTP provider, and records `SENT` plus its provider message ID and preview URL.
+5. The worker loads the durable email record, acquires a legal send slot, records `SENDING`, and calls the authenticated SMTP gateway over HTTPS.
+6. The server-only Vercel function submits through Ethereal SMTP and returns its provider message ID and preview URL; the worker then records `SENT`.
 
 The normal lifecycle is:
 
@@ -107,12 +108,7 @@ CORS_ORIGIN="http://localhost:3000"
 EMAIL_QUEUE_NAME="pulsegrid-email"
 WORKER_CONCURRENCY="10"
 API_INTERNAL_SECRET="replace-with-at-least-32-random-characters"
-
-# Defaulting to Ethereal Email for testing
-ETHEREAL_SMTP_HOST="smtp.ethereal.email"
-ETHEREAL_SMTP_PORT="587"
-ETHEREAL_SMTP_USER="your-ethereal-username"
-ETHEREAL_SMTP_PASS="your-ethereal-password"
+SMTP_GATEWAY_URL="http://localhost:3000/api/internal/email-delivery"
 ```
 
 ### `frontend/.env.local`
@@ -123,6 +119,12 @@ AUTH_URL="http://localhost:3000"
 NEXTAUTH_URL="http://localhost:3000"
 GOOGLE_CLIENT_ID="your-google-oauth-client-id"
 GOOGLE_CLIENT_SECRET="your-google-oauth-client-secret"
+BACKEND_API_URL="http://localhost:4000"
+API_INTERNAL_SECRET="replace-with-the-same-backend-secret"
+ETHEREAL_SMTP_HOST="smtp.ethereal.email"
+ETHEREAL_SMTP_PORT="587"
+ETHEREAL_SMTP_USER="your-ethereal-username"
+ETHEREAL_SMTP_PASS="your-ethereal-password"
 BACKEND_API_URL="http://localhost:4000"
 API_INTERNAL_SECRET="must-exactly-match-backend-api-internal-secret"
 ```
@@ -192,7 +194,7 @@ Create managed PostgreSQL and Redis services first. Then create two services fro
 | Health check | `/health` | Not HTTP-based |
 | Pre-deploy command | `npm run db:deploy` | None |
 
-The Dockerfile executes the self-contained `npm run build` script, which generates Prisma Client before compiling TypeScript. Run migrations only from the API service's pre-deploy phase. Both services must deploy the same commit and share the same database, Redis instance, queue name, internal secret, and Ethereal credentials.
+The Dockerfile executes the self-contained `npm run build` script, which generates Prisma Client before compiling TypeScript. Run migrations only from the API service's pre-deploy phase. Both Railway services must deploy the same commit and share the same database, Redis instance, queue name, and internal secret.
 
 Configure these Railway variables on both API and worker unless marked otherwise:
 
@@ -206,12 +208,9 @@ Configure these Railway variables on both API and worker unless marked otherwise
 | `CORS_ORIGIN` | API | Exact Vercel production origin, such as `https://scheduler.example.com`, without a trailing slash. |
 | `PORT` | API | Use Railway's injected value; do not hardcode port 4000 in Railway. |
 | `WORKER_CONCURRENCY` | Worker | Start with `10`, then tune against SMTP and database capacity. |
-| `ETHEREAL_SMTP_HOST` | Worker | `smtp.ethereal.email`. |
-| `ETHEREAL_SMTP_PORT` | Worker | `587` for STARTTLS or `465` for implicit TLS. |
-| `ETHEREAL_SMTP_USER` | Worker | Ethereal SMTP username stored as a secret. |
-| `ETHEREAL_SMTP_PASS` | Worker | Ethereal SMTP password stored as a secret. |
+| `SMTP_GATEWAY_URL` | Worker | Exact Vercel server endpoint, for example `https://scheduler.example.com/api/internal/email-delivery`. |
 
-After deployment, `/health` must return HTTP 200, the worker must log `Ethereal SMTP connection verified`, and the API must log `Queue reconciliation complete`.
+After deployment, `/health` must return HTTP 200, the worker must remain online with Redis ready, and the API must log `Queue reconciliation complete`.
 
 ### Vercel Project Configuration
 
@@ -225,7 +224,11 @@ Import the repository into Vercel and set the project Root Directory to `fronten
 | `GOOGLE_CLIENT_ID` | Production Google OAuth Web Client ID for the deployed frontend origin. |
 | `GOOGLE_CLIENT_SECRET` | Matching Google OAuth secret. Keep it server-only and never use a `NEXT_PUBLIC_` prefix. |
 | `BACKEND_API_URL` | Public Railway API origin, without `/api` or a trailing slash. Only server-side route handlers use it. |
-| `API_INTERNAL_SECRET` | Must exactly match the Railway API value and remain server-only. |
+| `API_INTERNAL_SECRET` | Must exactly match the Railway API and worker value and remain server-only. |
+| `ETHEREAL_SMTP_HOST` | `smtp.ethereal.email`. |
+| `ETHEREAL_SMTP_PORT` | `587` for STARTTLS. |
+| `ETHEREAL_SMTP_USER` | Ethereal SMTP username; server-only. |
+| `ETHEREAL_SMTP_PASS` | Ethereal SMTP password; server-only. |
 
 The production Google OAuth client must include:
 
@@ -241,6 +244,7 @@ Google does not accept arbitrary Vercel preview callback wildcards. For preview 
 - `npm ci && npm run build` succeeds from a clean checkout in both project directories.
 - Prisma migrations complete before the API starts; never run `prisma migrate dev` in production.
 - API and worker deploy from the same commit and share `DATABASE_URL`, `REDIS_URL`, and `EMAIL_QUEUE_NAME`.
+- The worker's `SMTP_GATEWAY_URL` targets the stable Vercel production domain, and all three services share `API_INTERNAL_SECRET`.
 - Only the API has a public Railway domain; PostgreSQL, Redis, and the worker remain private.
 - Railway health checks and restart policies are enabled for both long-running services.
 - Vercel, Railway `CORS_ORIGIN`, and Google OAuth use the same production HTTPS frontend origin.
