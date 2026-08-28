@@ -1,5 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import nodemailer, { getTestMessageUrl } from 'nodemailer';
+import type { Transporter } from 'nodemailer';
+import type SMTPPool from 'nodemailer/lib/smtp-pool';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 export const runtime = 'nodejs';
@@ -14,6 +16,8 @@ interface DeliveryRequest {
   textBody: string;
   htmlBody?: string;
 }
+
+let smtpTransporter: Transporter<SMTPPool.SentMessageInfo, SMTPPool.Options> | undefined;
 
 function isNonEmptyString(value: unknown, maximum: number): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= maximum;
@@ -44,7 +48,7 @@ function secretsMatch(provided: string | null, expected: string | undefined): bo
     && timingSafeEqual(providedBuffer, expectedBuffer);
 }
 
-function smtpConfiguration(): { options: SMTPTransport.Options; user: string } {
+function smtpConfiguration(): { options: SMTPPool.Options; user: string } {
   const host = process.env.ETHEREAL_SMTP_HOST ?? 'smtp.ethereal.email';
   const port = Number(process.env.ETHEREAL_SMTP_PORT ?? '587');
   const user = process.env.ETHEREAL_SMTP_USER;
@@ -59,6 +63,11 @@ function smtpConfiguration(): { options: SMTPTransport.Options; user: string } {
       port,
       secure: port === 465,
       auth: { user, pass },
+      pool: true,
+      maxConnections: 1,
+      maxMessages: 100,
+      rateDelta: 2_000,
+      rateLimit: 1,
       connectionTimeout: 15_000,
       greetingTimeout: 15_000,
       socketTimeout: 45_000,
@@ -78,7 +87,8 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const configuration = smtpConfiguration();
-    const transporter = nodemailer.createTransport(configuration.options);
+    smtpTransporter ??= nodemailer.createTransport(configuration.options);
+    const transporter = smtpTransporter;
     const info = await transporter.sendMail({
       envelope: { from: configuration.user, to: delivery.toEmail },
       from: { name: delivery.fromName, address: delivery.fromEmail },
@@ -98,10 +108,11 @@ export async function POST(request: Request): Promise<Response> {
       previewUrl: getTestMessageUrl(info as unknown as SMTPTransport.SentMessageInfo) || null,
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Ethereal delivery failed', {
       emailId: delivery.emailId,
-      error: error instanceof Error ? error.message : String(error),
+      error: message,
     });
-    return Response.json({ error: 'Ethereal delivery failed' }, { status: 502 });
+    return Response.json({ error: `Ethereal delivery failed: ${message.slice(0, 500)}` }, { status: 502 });
   }
 }
