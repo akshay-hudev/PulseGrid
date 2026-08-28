@@ -29,6 +29,7 @@ export function PulseDashboard({ user }: PulseDashboardProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [operationalDate, setOperationalDate] = useState('');
 
   const refresh = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true);
@@ -52,7 +53,16 @@ export function PulseDashboard({ user }: PulseDashboardProps) {
   }, []);
 
   useEffect(() => {
-    const initialRefresh = window.setTimeout(() => void refresh(), 0);
+    const initialRefresh = window.setTimeout(() => {
+      setOperationalDate(
+        new Intl.DateTimeFormat(undefined, {
+          month: 'short',
+          day: '2-digit',
+          year: 'numeric',
+        }).format(new Date()).toUpperCase(),
+      );
+      void refresh();
+    }, 0);
     const interval = window.setInterval(() => void refresh(true), 5_000);
     return () => {
       window.clearTimeout(initialRefresh);
@@ -71,7 +81,7 @@ export function PulseDashboard({ user }: PulseDashboardProps) {
       <div className="noise" aria-hidden="true" />
       <header className="topbar">
         <div className="brand-mark"><Orbit size={20} /> PULSEGRID <span>CONTROL</span></div>
-        <div className="topbar-center"><i /> SYSTEM OPERATIONAL <span>{new Date().toLocaleDateString(undefined, { month: 'short', day: '2-digit', year: 'numeric' }).toUpperCase()}</span></div>
+        <div className="topbar-center"><i /> SYSTEM OPERATIONAL <span>{operationalDate || '\u00a0'}</span></div>
         <div className="operator-menu">
           <div className="avatar">
             {user.image ? <Image src={user.image} alt="" width={36} height={36} /> : initials}
