@@ -80,8 +80,8 @@ export function PulseDashboard({ user }: PulseDashboardProps) {
     <main className="dashboard-shell">
       <div className="noise" aria-hidden="true" />
       <header className="topbar">
-        <div className="brand-mark"><Orbit size={20} /> PULSEGRID <span>CONTROL</span></div>
-        <div className="topbar-center"><i /> SYSTEM OPERATIONAL <span>{operationalDate || '\u00a0'}</span></div>
+        <div className="brand-mark"><Orbit size={20} /> PULSEGRID <span>EMAIL QUEUE</span></div>
+        <div className="topbar-center"><i /> SCHEDULER ONLINE <span>{operationalDate || '\u00a0'}</span></div>
         <div className="operator-menu">
           <div className="avatar">
             {user.image ? <Image src={user.image} alt="" width={36} height={36} /> : initials}
@@ -101,9 +101,9 @@ export function PulseDashboard({ user }: PulseDashboardProps) {
         <div className="dashboard-content">
           <section className="dashboard-intro">
             <div>
-              <p className="eyebrow"><span /> OUTREACH COMMAND CENTER</p>
-              <h1>Good signal, {user.name.split(' ')[0]}.</h1>
-              <p>Monitor the queue fabric and launch precision-timed transmissions.</p>
+              <p className="eyebrow"><span /> EMAIL SCHEDULER</p>
+              <h1>Your email queue, {user.name.split(' ')[0]}.</h1>
+              <p>Schedule a list, check progress, and open sent-email previews.</p>
             </div>
             <button className="compose-button" onClick={() => setComposeOpen(true)} disabled={!senders.length}>
               <CirclePlus size={18} /> Compose new email
@@ -113,8 +113,8 @@ export function PulseDashboard({ user }: PulseDashboardProps) {
           {error && <div className="global-error" role="alert"><span>{error}</span><button onClick={() => void refresh()}>Retry connection</button></div>}
 
           <div className="metric-strip">
-            <div><TimerReset size={18} /><span>On runway</span><strong>{scheduled.items.length.toString().padStart(2, '0')}</strong></div>
-            <div><Send size={18} /><span>Delivered</span><strong>{sentCount.toString().padStart(2, '0')}</strong></div>
+            <div><TimerReset size={18} /><span>Scheduled</span><strong>{scheduled.items.length.toString().padStart(2, '0')}</strong></div>
+            <div><Send size={18} /><span>Sent</span><strong>{sentCount.toString().padStart(2, '0')}</strong></div>
             <div><Activity size={18} /><span>Active senders</span><strong>{senders.length.toString().padStart(2, '0')}</strong></div>
             <button onClick={() => void refresh(true)} disabled={refreshing} className="refresh-button"><RefreshCw size={15} className={refreshing ? 'spin' : ''} /> SYNC</button>
           </div>
@@ -128,7 +128,7 @@ export function PulseDashboard({ user }: PulseDashboardProps) {
                   Scheduled <span>{scheduled.items.length}</span>
                 </button>
                 <button className={activeTab === 'sent' ? 'active' : ''} onClick={() => setActiveTab('sent')} role="tab">
-                  Sent archive <span>{sent.items.length}</span>
+                  Sent emails <span>{sent.items.length}</span>
                 </button>
               </div>
               <p>AUTO REFRESH · 5 SEC</p>

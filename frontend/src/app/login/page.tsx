@@ -1,5 +1,5 @@
 import { signIn } from '@/auth';
-import { Activity, ArrowRight, Orbit, RadioTower } from 'lucide-react';
+import { ArrowRight, Check, Clock3, Orbit } from 'lucide-react';
 
 export default function LoginPage() {
   return (
@@ -8,15 +8,15 @@ export default function LoginPage() {
       <section className="login-stage">
         <div className="brand-mark"><Orbit size={21} /> PULSEGRID</div>
         <div className="login-copy">
-          <p className="eyebrow"><span /> EMAIL DELIVERY INFRASTRUCTURE</p>
-          <h1>Every message.<br /><em>Right on time.</em></h1>
+          <p className="eyebrow"><span /> EMAIL SCHEDULER</p>
+          <h1>Send the list.<br /><em>At the right time.</em></h1>
           <p className="login-lede">
-            A resilient dispatch layer for scheduling, throttling, and observing
-            high-volume email delivery in real time.
+            Upload recipients, choose a start time, and watch each email move
+            through the queue. That&apos;s it.
           </p>
           <div className="system-readout">
-            <div><RadioTower size={16} /><span>Queue fabric</span><strong>ONLINE</strong></div>
-            <div><Activity size={16} /><span>Delivery state</span><strong>READY</strong></div>
+            <div><Clock3 size={16} /><span>Delayed scheduling</span><strong>READY</strong></div>
+            <div><Check size={16} /><span>Send history</span><strong>INCLUDED</strong></div>
           </div>
         </div>
         <form
@@ -26,14 +26,14 @@ export default function LoginPage() {
           }}
           className="login-card"
         >
-          <span className="card-index">PG / AUTH-01</span>
+          <span className="card-index">SIGN IN</span>
           <div className="google-glyph" aria-hidden="true">G</div>
-          <h2>Enter command center</h2>
-          <p>Authenticate with your Google workspace to access the dispatch network.</p>
+          <h2>Open your email queue</h2>
+          <p>Use Google to sign in. We only use your account for authentication.</p>
           <button type="submit" className="primary-action">
             Continue with Google <ArrowRight size={17} />
           </button>
-          <small>OAuth 2.0 · Encrypted session · No password stored</small>
+          <small>OAuth 2.0 · We do not store your Google password</small>
         </form>
       </section>
     </main>

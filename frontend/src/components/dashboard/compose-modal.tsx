@@ -90,35 +90,35 @@ export function ComposeModal({ senders, onClose, onScheduled }: ComposeModalProp
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="compose-modal" role="dialog" aria-modal="true" aria-labelledby="compose-title">
         <header>
-          <div><span className="card-index">PG / NEW TRANSMISSION</span><h2 id="compose-title">Compose dispatch</h2></div>
+          <div><span className="card-index">NEW EMAIL BATCH</span><h2 id="compose-title">Schedule emails</h2></div>
           <button className="icon-button" onClick={onClose} aria-label="Close compose dialog"><X size={18} /></button>
         </header>
         <form onSubmit={submit}>
           <div className="compose-grid">
             <div className="compose-main">
-              <label>Sender channel
+              <label>Sender
                 <select value={senderAccountId} onChange={(event) => setSenderAccountId(event.target.value)} required>
                   {senders.map((sender) => <option value={sender.id} key={sender.id}>{sender.displayName ?? sender.email} · {sender.email}</option>)}
                 </select>
               </label>
-              <label>Subject line
-                <input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={998} placeholder="A signal worth opening" required />
+              <label>Subject
+                <input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={998} placeholder="Email subject" required />
               </label>
               <label>Message body
-                <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={9} placeholder="Write your transmission…" required />
+                <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={9} placeholder="Write the email…" required />
               </label>
               <label className={`file-drop ${recipients.length ? 'file-ready' : ''}`}>
                 <input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={(event) => void readLeads(event)} />
                 {recipients.length ? <Check size={21} /> : <FileUp size={21} />}
-                <span><strong>{fileName || 'Upload lead manifest'}</strong><small>{recipients.length ? `${recipients.length} unique addresses detected` : 'CSV or text · up to 5 MB'}</small></span>
+                <span><strong>{fileName || 'Upload recipient list'}</strong><small>{recipients.length ? `${recipients.length} unique addresses found` : 'CSV or text · up to 5 MB'}</small></span>
               </label>
             </div>
             <aside className="launch-controls">
-              <p className="eyebrow"><span /> LAUNCH PARAMETERS</p>
+              <p className="eyebrow"><span /> SEND SETTINGS</p>
               <label>Start time<input type="datetime-local" value={startTime} onChange={(event) => setStartTime(event.target.value)} required /></label>
-              <label>Signal spacing<div className="unit-input"><input type="number" min="1" max="3600" value={delaySeconds} onChange={(event) => setDelaySeconds(Number(event.target.value))} required /><span>SEC</span></div></label>
-              <label>Hourly ceiling<div className="unit-input"><input type="number" min="1" max="10000" value={hourlyLimit} onChange={(event) => setHourlyLimit(Number(event.target.value))} required /><span>/ HR</span></div></label>
-              <div className="launch-summary"><Radio size={16} /><span>Channel</span><strong>{selectedSender?.email ?? 'Unavailable'}</strong></div>
+              <label>Delay between emails<div className="unit-input"><input type="number" min="1" max="3600" value={delaySeconds} onChange={(event) => setDelaySeconds(Number(event.target.value))} required /><span>SEC</span></div></label>
+              <label>Emails per hour<div className="unit-input"><input type="number" min="1" max="10000" value={hourlyLimit} onChange={(event) => setHourlyLimit(Number(event.target.value))} required /><span>/ HR</span></div></label>
+              <div className="launch-summary"><Radio size={16} /><span>Sender</span><strong>{selectedSender?.email ?? 'Unavailable'}</strong></div>
               <div className="launch-summary"><ArrowRight size={16} /><span>Recipients</span><strong>{recipients.length}</strong></div>
             </aside>
           </div>
@@ -126,7 +126,7 @@ export function ComposeModal({ senders, onClose, onScheduled }: ComposeModalProp
           <footer>
             <button type="button" className="secondary-action" onClick={onClose}>Cancel</button>
             <button type="submit" className="primary-action" disabled={submitting || senders.length === 0}>
-              {submitting ? 'Scheduling…' : 'Launch dispatch'} <Send size={16} />
+              {submitting ? 'Scheduling…' : 'Schedule emails'} <Send size={16} />
             </button>
           </footer>
         </form>

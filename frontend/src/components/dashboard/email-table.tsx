@@ -65,11 +65,11 @@ export function EmailTable({ emails, loading, mode, onDeleted }: EmailTableProps
     return (
       <div className="empty-state">
         <div><Inbox size={23} /></div>
-        <h3>{mode === 'scheduled' ? 'The runway is clear' : 'No transmissions yet'}</h3>
+        <h3>{mode === 'scheduled' ? 'No emails scheduled' : 'No sent emails yet'}</h3>
         <p>
           {mode === 'scheduled'
-            ? 'Compose a dispatch to place your first emails on the timeline.'
-            : 'Delivered and failed transmissions will appear here.'}
+            ? 'Schedule an email list and it will appear here.'
+            : 'Sent and failed emails will appear here.'}
         </p>
       </div>
     );
@@ -82,7 +82,7 @@ export function EmailTable({ emails, loading, mode, onDeleted }: EmailTableProps
         <thead>
           <tr>
             <th>Recipient</th>
-            <th>Transmission</th>
+            <th>Subject</th>
             <th>{mode === 'scheduled' ? 'Scheduled' : 'Sent'}</th>
             <th>Status</th>
             <th aria-label="Actions" />
